@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { Task } from '@/types';
-import { mockTasks, getStatusLabel, getStatusColor, getTypeLabel, getTypeColor } from '@/data/mockData';
+import { getStatusLabel, getStatusColor, getTypeLabel, getTypeColor } from '@/data/mockData';
+import { useTasks } from '@/hooks/useTasks';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -97,7 +98,7 @@ type SortDir = 'asc' | 'desc';
 
 export default function Tarefas() {
   /* State */
-  const [tasks, setTasks] = useState<Task[]>(mockTasks);
+  const { tasks, loading: tasksLoading, addTask, update, remove } = useTasks();
   const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState<string>('Todas');
@@ -178,49 +179,30 @@ export default function Tarefas() {
     setContextMenu(null);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deleteModal) {
-      setTasks((prev) => prev.filter((t) => t.id !== deleteModal.id));
+      await remove(deleteModal.id);
       setDeleteModal(null);
     }
   };
 
-  const handleSave = (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
+  const handleSave = async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
     if (editingTask) {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === editingTask.id ? { ...t, ...taskData, updated_at: new Date().toISOString() } : t
-        )
-      );
+      await update(editingTask.id, taskData);
     } else {
-      const newTask: Task = {
-        ...taskData,
-        id: Date.now(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setTasks((prev) => [newTask, ...prev]);
+      await addTask(taskData);
     }
     setModalOpen(false);
   };
 
-  const handleDuplicate = (task: Task) => {
-    const dup: Task = {
-      ...task,
-      id: Date.now(),
-      title: `${task.title} (Copia)`,
-      status: 'pending',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setTasks((prev) => [dup, ...prev]);
+  const handleDuplicate = async (task: Task) => {
+    const { id, created_at, updated_at, ...rest } = task;
+    await addTask({ ...rest, title: `${rest.title} (Copia)`, status: 'pending' });
     setContextMenu(null);
   };
 
-  const handleStatusChange = (task: Task, newStatus: string) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, status: newStatus as Task['status'], updated_at: new Date().toISOString() } : t))
-    );
+  const handleStatusChange = async (task: Task, newStatus: string) => {
+    await update(task.id, { status: newStatus as Task['status'] });
     setContextMenu(null);
   };
 
@@ -237,6 +219,12 @@ export default function Tarefas() {
 
   return (
     <div className="flex flex-col" style={{ backgroundColor: 'var(--bg)', minHeight: 'calc(100dvh - 56px)' }}>
+      {tasksLoading && (
+        <div className="border-b px-6 py-2 text-xs" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+          Carregando tarefas...
+        </div>
+      )}
+
       {/* ── Header + Filters ── */}
       <div className="sticky top-0 z-30 border-b px-6 py-4" style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)' }}>
         <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

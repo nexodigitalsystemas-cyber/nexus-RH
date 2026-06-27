@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import type { ProcessedFile } from '@/types';
-import { mockFiles, formatFileSize } from '@/data/mockData';
+import { formatFileSize } from '@/data/mockData';
+import { useFiles } from '@/hooks/useFiles';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -120,40 +121,16 @@ function getFileIconBg(type: string): string {
   }
 }
 
-/* ─── Enriched mock files with category/folder ─── */
-
-const FILE_CATEGORIES: Record<number, FileItem['category']> = {
-  1: 'RH',
-  2: 'Financeiro',
-  3: 'Operacional',
-  4: 'Financeiro',
-  5: 'Comercial',
-  6: 'Operacional',
-};
-
-const FILE_FOLDERS: Record<number, string> = {
-  1: 'RH',
-  2: 'Financeiro',
-  3: 'Operacional',
-  4: 'Financeiro',
-  5: 'Comercial',
-  6: 'Operacional',
-};
-
-const initialFiles: FileItem[] = mockFiles.map((f) => ({
-  ...f,
-  category: FILE_CATEGORIES[f.id] || 'unclassified',
-  folder: FILE_FOLDERS[f.id] || 'unclassified',
-  status: 'active' as const,
-}));
-
 /* ═══════════════════════════════════════════
    Main Component
    ═══════════════════════════════════════════ */
 
 export default function Arquivos() {
-  const [files, setFiles] = useState<FileItem[]>(initialFiles);
   const [activeFolder, setActiveFolder] = useState('all');
+  const { files, loading, remove, refetch } = useFiles({
+    folder: activeFolder === 'all' || activeFolder === 'trash' || activeFolder === 'unclassified' ? undefined : activeFolder,
+    status: activeFolder === 'trash' ? 'trash' : 'active',
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('created_at');
@@ -302,32 +279,18 @@ export default function Arquivos() {
         clearInterval(interval);
         setTimeout(() => {
           setUploadProgress(null);
-          // Add uploaded files to state
-          const newFiles: FileItem[] = uploadFiles.map((f) => ({
-            id: Date.now() + Math.floor(Math.random() * 1000),
-            file_name: f.name,
-            file_path: `/uploads/${f.name}`,
-            file_type: f.name.split('.').pop()?.toUpperCase() || 'UNKNOWN',
-            file_size: f.size,
-            classification: 'Classificando...',
-            created_at: new Date().toISOString(),
-            category: 'unclassified',
-            folder: 'unclassified',
-            status: 'active',
-          }));
-          setFiles((prev) => [...newFiles, ...prev]);
+          refetch();
         }, 800);
       }
     }, 300);
   };
 
   /* ─── Delete selected ─── */
-  const deleteSelected = useCallback(() => {
-    setFiles((prev) =>
-      prev.map((f) => (selectedIds.has(f.id) ? { ...f, status: 'trash' as const } : f))
-    );
+  const deleteSelected = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    await Promise.all(ids.map((id) => remove(id)));
     setSelectedIds(new Set());
-  }, [selectedIds]);
+  }, [selectedIds, remove]);
 
   /* ─── Sort toggle ─── */
   const toggleSort = useCallback(
@@ -351,6 +314,12 @@ export default function Arquivos() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {loading && (
+        <div className="border-b px-6 py-2 text-xs" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+          Carregando arquivos...
+        </div>
+      )}
+
       {/* ── Toolbar ── */}
       <div className="border-b px-6 py-4" style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)' }}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

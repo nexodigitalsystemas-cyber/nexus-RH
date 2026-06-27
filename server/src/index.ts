@@ -1,6 +1,12 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import './db/index.js';
 import { aiRoutes } from './routes/ai.js';
+import { taskRoutes } from './routes/tasks.js';
+import { fileRoutes } from './routes/files.js';
+import { reportRoutes } from './routes/reports.js';
+import { candidateRoutes } from './routes/candidates.js';
+import { settingsRoutes } from './routes/settings.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -19,6 +25,11 @@ async function main() {
   });
 
   await fastify.register(aiRoutes, { prefix: '/api/ai' });
+  await fastify.register(taskRoutes, { prefix: '/api/tasks' });
+  await fastify.register(fileRoutes, { prefix: '/api/files' });
+  await fastify.register(reportRoutes, { prefix: '/api/reports' });
+  await fastify.register(candidateRoutes, { prefix: '/api/candidates' });
+  await fastify.register(settingsRoutes, { prefix: '/api/settings' });
 
   fastify.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }));
 

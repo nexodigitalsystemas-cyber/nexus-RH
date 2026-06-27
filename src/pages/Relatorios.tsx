@@ -32,15 +32,9 @@ import { ptBR } from 'date-fns/locale';
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface Report {
-  id: number;
-  nome: string;
-  tipo: 'excel' | 'pdf';
-  status: 'pronto' | 'gerando' | 'erro';
-  data: string;
-  tamanho: string;
-  descricao: string;
-}
+import type { Report } from '@/lib/api';
+import { useReports } from '@/hooks/useReports';
+import { formatFileSize } from '@/data/mockData';
 
 interface Template {
   id: string;
@@ -122,63 +116,6 @@ const TEMPLATES: Template[] = [
     cor: '#EC4899',
     corBg: 'rgba(236,72,153,0.1)',
     formato: 'ambos',
-  },
-];
-
-const RELATORIOS_INICIAIS: Report[] = [
-  {
-    id: 1,
-    nome: 'Relatorio_Vendas_Junho_2025.xlsx',
-    tipo: 'excel',
-    status: 'pronto',
-    data: '2025-06-28T14:30:00',
-    tamanho: '245 KB',
-    descricao: 'Relatorio completo de vendas do mes de junho',
-  },
-  {
-    id: 2,
-    nome: 'Analise_CVs_Desenvolvedores.pdf',
-    tipo: 'pdf',
-    status: 'pronto',
-    data: '2025-06-27T09:15:00',
-    tamanho: '189 KB',
-    descricao: 'Analise comparativa de curriculos de devs',
-  },
-  {
-    id: 3,
-    nome: 'Conciliacao_Bancaria_Q2.xlsx',
-    tipo: 'excel',
-    status: 'pronto',
-    data: '2025-06-25T16:45:00',
-    tamanho: '512 KB',
-    descricao: 'Conciliacao de extratos bancarios do Q2',
-  },
-  {
-    id: 4,
-    nome: 'Resumo_Contratos_Fornecedores.pdf',
-    tipo: 'pdf',
-    status: 'gerando',
-    data: '2025-06-28T10:00:00',
-    tamanho: '--',
-    descricao: 'Resumo de contratos com fornecedores',
-  },
-  {
-    id: 5,
-    nome: 'NFs_Entrada_Junho.xlsx',
-    tipo: 'excel',
-    status: 'erro',
-    data: '2025-06-22T11:20:00',
-    tamanho: '--',
-    descricao: 'Notas fiscais de entrada do mes de junho',
-  },
-  {
-    id: 6,
-    nome: 'Relatorio_Orcamentos_Comparativo.xlsx',
-    tipo: 'excel',
-    status: 'pronto',
-    data: '2025-06-20T08:30:00',
-    tamanho: '328 KB',
-    descricao: 'Comparativo de orcamentos de fornecedores',
   },
 ];
 
@@ -309,12 +246,12 @@ function StatusBadge({ status }: { status: Report['status'] }) {
 /*  Type Badge                                                         */
 /* ------------------------------------------------------------------ */
 
-function TypeBadge({ tipo }: { tipo: Report['tipo'] }) {
+function TypeBadge({ type }: { type: Report['type'] }) {
   const config = {
     excel: { bg: '#D1FAE5', color: '#10B981', label: 'Excel', icon: Table },
     pdf: { bg: '#FEE2E2', color: '#EF4444', label: 'PDF', icon: FileText },
   };
-  const c = config[tipo];
+  const c = config[type];
   const Icon = c.icon;
   return (
     <span
@@ -340,7 +277,7 @@ export default function Relatorios() {
   const [progresso, setProgresso] = useState(0);
   const [etapas, setEtapas] = useState<EtapaProgresso[]>(ETAPAS);
   const [geracaoCompleta, setGeracaoCompleta] = useState(false);
-  const [relatorios, setRelatorios] = useState<Report[]>(RELATORIOS_INICIAIS);
+  const { reports: relatorios, loading: reportsLoading, addReport, remove } = useReports();
   const [busca, setBusca] = useState('');
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'excel' | 'pdf'>('todos');
   const [relatorioPreview, setRelatorioPreview] = useState<Report | null>(null);
@@ -371,8 +308,8 @@ export default function Relatorios() {
 
   /* Filter reports */
   const relatoriosFiltrados = relatorios.filter((r) => {
-    const matchBusca = r.nome.toLowerCase().includes(busca.toLowerCase());
-    const matchTipo = filtroTipo === 'todos' || r.tipo === filtroTipo;
+    const matchBusca = r.name.toLowerCase().includes(busca.toLowerCase());
+    const matchTipo = filtroTipo === 'todos' || r.type === filtroTipo;
     return matchBusca && matchTipo;
   });
 
@@ -423,19 +360,18 @@ export default function Relatorios() {
         setTimeout(() => {
           setIsGenerating(false);
           setGeracaoCompleta(true);
-          const novoRelatorio: Report = {
-            id: Date.now(),
-            nome:
+          const novoRelatorio: Omit<Report, 'id' | 'created_at'> = {
+            name:
               formato === 'excel'
                 ? `Relatorio_Gerado_${format(new Date(), 'dd-MM-yyyy', { locale: ptBR })}.xlsx`
                 : `Relatorio_Gerado_${format(new Date(), 'dd-MM-yyyy', { locale: ptBR })}.pdf`,
-            tipo: formato,
+            type: formato,
             status: 'pronto',
-            data: new Date().toISOString(),
-            tamanho: formato === 'excel' ? '156 KB' : '98 KB',
-            descricao: inputText || 'Relatorio gerado via comando natural',
+            description: inputText || 'Relatorio gerado via comando natural',
+            file_path: `/reports/Relatorio_Gerado_${format(new Date(), 'dd-MM-yyyy', { locale: ptBR })}.${formato}`,
+            file_size: formato === 'excel' ? 159744 : 100352,
           };
-          setRelatorios((prev) => [novoRelatorio, ...prev]);
+          addReport(novoRelatorio);
         }, 500);
       }
     }, 200);
@@ -465,8 +401,8 @@ export default function Relatorios() {
   };
 
   /* Delete report */
-  const handleDelete = (id: number) => {
-    setRelatorios((prev) => prev.filter((r) => r.id !== id));
+  const handleDelete = async (id: number) => {
+    await remove(id);
   };
 
   /* Format date */
@@ -505,6 +441,12 @@ export default function Relatorios() {
 
   return (
     <div className="space-y-6 pb-8">
+      {reportsLoading && (
+        <div className="rounded-lg border px-4 py-2 text-xs" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+          Carregando relatórios...
+        </div>
+      )}
+
       {/* ============ HEADER ============ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -1035,21 +977,21 @@ export default function Relatorios() {
                           className="max-w-[240px] truncate text-sm font-medium"
                           style={{ color: 'var(--text-secondary)' }}
                         >
-                          {relatorio.nome}
+                          {relatorio.name}
                         </span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {relatorio.descricao}
+                          {relatorio.description}
                         </span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <TypeBadge tipo={relatorio.tipo} />
+                      <TypeBadge type={relatorio.type} />
                     </td>
                     <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-muted)' }}>
-                      {relatorio.tamanho}
+                      {relatorio.file_size ? formatFileSize(relatorio.file_size) : '--'}
                     </td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {formatarData(relatorio.data)}
+                      {formatarData(relatorio.created_at)}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={relatorio.status} />
@@ -1190,10 +1132,10 @@ export default function Relatorios() {
               >
                 <div>
                   <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {relatorioPreview.nome}
+                    {relatorioPreview.name}
                   </h3>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {relatorioPreview.descricao}
+                    {relatorioPreview.description}
                   </p>
                 </div>
                 <button
@@ -1215,7 +1157,7 @@ export default function Relatorios() {
               {/* Modal Body - Mock Preview */}
               <div className="max-h-[60vh] overflow-auto p-5">
                 {/* Mock Excel Preview */}
-                {relatorioPreview.tipo === 'excel' ? (
+                {relatorioPreview.type === 'excel' ? (
                   <div>
                     {/* Sheet tabs */}
                     <div className="mb-3 flex gap-1">
@@ -1304,10 +1246,10 @@ export default function Relatorios() {
                   >
                     <div className="mb-6 text-center">
                       <h4 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                        {relatorioPreview.nome.replace('.pdf', '')}
+                        {relatorioPreview.name.replace('.pdf', '')}
                       </h4>
                       <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        Gerado em {formatarData(relatorioPreview.data)}
+                        Gerado em {formatarData(relatorioPreview.created_at)}
                       </p>
                     </div>
                     <div
@@ -1371,7 +1313,7 @@ export default function Relatorios() {
                   style={{ backgroundColor: 'var(--primary)' }}
                 >
                   <Download size={14} />
-                  Download {relatorioPreview.tipo === 'excel' ? 'Excel' : 'PDF'}
+                  Download {relatorioPreview.type === 'excel' ? 'Excel' : 'PDF'}
                 </button>
               </div>
             </motion.div>

@@ -27,15 +27,15 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import {
-  mockTasks,
-  mockFiles,
   chartData,
   categoryPerformance,
-  dashboardMetrics,
   formatFileSize,
   getStatusLabel,
   getStatusColor,
 } from '@/data/mockData';
+import { useTasks } from '@/hooks/useTasks';
+import { useFiles } from '@/hooks/useFiles';
+import { useDashboard } from '@/hooks/useDashboard';
 
 /* ─── Animated Counter ─── */
 function AnimatedCounter({ value, suffix = '', duration = 1200 }: { value: number; suffix?: string; duration?: number }) {
@@ -125,12 +125,32 @@ function FileTypeIcon({ type, size = 18 }: { type: string; size?: number }) {
 /* ─── Main Dashboard ─── */
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { tasks, loading: tasksLoading } = useTasks();
+  const { files, loading: filesLoading } = useFiles({ status: 'active' });
+  const { metrics, loading: metricsLoading } = useDashboard();
 
-  const recentTasks = mockTasks.slice(0, 5);
-  const recentFiles = mockFiles.slice(0, 6);
+  const recentTasks = tasks.slice(0, 5);
+  const recentFiles = files.slice(0, 6);
+  const dashboardMetrics = metrics ?? {
+    tasksCompleted: 0,
+    tasksTotal: 1,
+    efficiency: 0,
+    timeSaved: 0,
+    filesProcessed: 0,
+    pendingTasks: 0,
+    pendingBreakdown: '',
+  };
+
+  const isLoading = tasksLoading || filesLoading || metricsLoading;
 
   return (
     <div className="space-y-6">
+      {isLoading && (
+        <div className="rounded-xl border p-4 text-center text-sm" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+          Carregando dados do servidor...
+        </div>
+      )}
+
       {/* ─── KPI Cards Row ─── */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard

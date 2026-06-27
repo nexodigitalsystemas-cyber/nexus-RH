@@ -20,6 +20,9 @@ export interface ProcessedFile {
   extracted_text?: string;
   classification?: string;
   metadata?: string;
+  folder?: string;
+  category?: 'RH' | 'Financeiro' | 'Comercial' | 'Operacional' | 'unclassified';
+  status?: 'active' | 'processing' | 'trash';
   created_at: string;
 }
 
