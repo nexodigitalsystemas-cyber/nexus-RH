@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: #6366F1;
+    --primary-light: #818CF8;
+    --primary-dark: #4F46E5;
+    --secondary: #8B5CF6;
+    --secondary-light: #A78BFA;
+    --success: #10B981;
+    --success-light: #D1FAE5;
+    --warning: #F59E0B;
+    --warning-light: #FEF3C7;
+    --danger: #EF4444;
+    --danger-light: #FEE2E2;
+    --info: #3B82F6;
+    --info-light: #DBEAFE;
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-hover: #F1F5F9;
+    --text-primary: #0F172A;
+    --text-secondary: #1E293B;
+    --text-muted: #64748B;
+    --border: #E2E8F0;
+    --border-light: #F1F5F9;
+    --sidebar-bg: #0F172A;
+    --sidebar-active: #1E293B;
+    --sidebar-hover: rgba(255, 255, 255, 0.05);
+    --sidebar-text: #94A3B8;
+    --sidebar-text-active: #FFFFFF;
+    --radius: 0.625rem;
+  }
+
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-hover: #334155;
+    --text-primary: #F8FAFC;
+    --text-secondary: #E2E8F0;
+    --text-muted: #94A3B8;
+    --border: #334155;
+    --border-light: #1E293B;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg);
+    color: var(--text-secondary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    @apply border-[var(--border)];
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--border-light);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Shimmer animation for skeletons */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
