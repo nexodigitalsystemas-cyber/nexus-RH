@@ -17,8 +17,19 @@ export interface AIConfigResponse {
 }
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  name?: string;
+}
+
+export interface AgentToolCall {
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+export interface AgentResponse {
+  response: string;
+  actions: AgentToolCall[];
 }
 
 export interface Report {
@@ -79,6 +90,13 @@ export function chatStream(messages: ChatMessage[]): EventSource {
   const url = new URL(`${API_URL}/api/ai/chat`);
   url.searchParams.set('messages', JSON.stringify(messages));
   return new EventSource(url.toString());
+}
+
+export async function sendAgentMessage(messages: ChatMessage[]): Promise<AgentResponse> {
+  return request<AgentResponse>('/api/agent/chat', {
+    method: 'POST',
+    body: JSON.stringify({ messages }),
+  });
 }
 
 /* ─── Tasks ─── */

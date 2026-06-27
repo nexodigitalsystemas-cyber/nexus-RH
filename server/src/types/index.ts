@@ -6,13 +6,26 @@ export interface OllamaConfig {
 }
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  name?: string;
+  tool_call_id?: string;
 }
 
 export interface AIChatRequest {
   messages: ChatMessage[];
   stream?: boolean;
+  tools?: OllamaTool[];
+  format?: 'json';
+}
+
+export interface OllamaTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
 }
 
 export interface AIStatusResponse {

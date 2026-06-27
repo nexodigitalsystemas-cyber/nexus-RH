@@ -1,4 +1,4 @@
-import type { AIChatRequest, AIStatusResponse, OllamaConfig } from '../types/index.js';
+import type { AIChatRequest, AIStatusResponse, OllamaConfig, OllamaTool } from '../types/index.js';
 
 const DEFAULT_CONFIG: OllamaConfig = {
   baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
@@ -95,6 +95,75 @@ export async function* streamChat(config: OllamaConfig, request: AIChatRequest):
   } finally {
     reader.releaseLock();
   }
+}
+
+export interface ChatResponse {
+  content: string;
+  tool_calls?: Array<{
+    id?: string;
+    function: {
+      name: string;
+      arguments: Record<string, unknown>;
+    };
+  }>;
+}
+
+export async function chatWithTools(
+  config: OllamaConfig,
+  messages: AIChatRequest['messages'],
+  tools: OllamaTool[],
+): Promise<ChatResponse> {
+  const baseUrl = config.baseUrl.replace(/\/$/, '');
+
+  const body = {
+    model: config.model,
+    messages,
+    tools,
+    stream: false,
+    options: {
+      temperature: config.temperature,
+      num_predict: config.maxTokens,
+    },
+  };
+
+  const res = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'unknown error');
+    throw new Error(`Ollama error ${res.status}: ${text}`);
+  }
+
+  const data = (await res.json()) as {
+    message?: {
+      content?: string;
+      tool_calls?: Array<{
+        id?: string;
+        function: {
+          name?: string;
+          arguments?: Record<string, unknown>;
+        };
+      }>;
+    };
+  };
+
+  const tool_calls = data.message?.tool_calls
+    ?.filter((tc) => tc.function?.name)
+    .map((tc) => ({
+      id: tc.id,
+      function: {
+        name: tc.function.name as string,
+        arguments: tc.function.arguments ?? {},
+      },
+    }));
+
+  return {
+    content: data.message?.content || '',
+    tool_calls,
+  };
 }
 
 export async function chatNonStreaming(config: OllamaConfig, request: AIChatRequest): Promise<string> {

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { sendAgentMessage, type AgentToolCall, type ChatMessage as ApiChatMessage } from '@/lib/api';
 import {
   Paperclip,
   Send,
@@ -93,6 +94,53 @@ function formatFileSize(bytes: number): string {
 
 function formatTime(date: Date): string {
   return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function deriveStructuredData(actions: AgentToolCall[], responseText: string): StructuredData | undefined {
+  for (const action of actions) {
+    const args = action.arguments;
+    if (action.name === 'createTask' && args.title) {
+      return {
+        type: 'task',
+        title: String(args.title),
+        category: String(args.category || 'RH'),
+        status: 'pendente',
+        priority: String(args.priority || 'medium'),
+        taskId: String(args.id || ''),
+      };
+    }
+    if (action.name === 'generateExcelReport' && args.filename) {
+      return {
+        type: 'report',
+        title: String(args.title || 'Relatório gerado'),
+        filename: String(args.filename),
+        description: responseText || `Arquivo ${args.filename} gerado com sucesso.`,
+      };
+    }
+    if (action.name === 'createCandidate' && args.name) {
+      return {
+        type: 'cv',
+        nome: String(args.name),
+        email: String(args.email || ''),
+        telefone: String(args.phone || ''),
+        cargo: String(args.skills ? `Habilidades: ${args.skills}` : ''),
+        experiencia: String(args.experience || ''),
+        formacao: '',
+        habilidades: args.skills ? String(args.skills).split(',').map((s) => s.trim()).filter(Boolean) : [],
+      };
+    }
+    if (action.name === 'organizeFiles') {
+      return {
+        type: 'task',
+        title: `Organizar arquivos de /${args.sourceFolder || 'downloads'}`,
+        category: String(args.targetFolder || 'Automacao'),
+        status: 'concluida',
+        priority: 'baixa',
+        taskId: '',
+      };
+    }
+  }
+  return undefined;
 }
 
 function getFileIcon(type: string) {
@@ -426,122 +474,46 @@ export default function Agente() {
     return () => clearInterval(typeInterval);
   }, [placeholderIndex, isTypingPlaceholder]);
 
-  /* Simulate AI response based on user input */
-  const simulateAIResponse = useCallback((userText: string, userAttachments: FileAttachment[]) => {
-    const lower = userText.toLowerCase();
-    const hasFile = userAttachments.length > 0;
-
-    setTimeout(() => {
+  /* Call real AI agent backend */
+  const handleAgentResponse = useCallback(
+    async (userText: string, _userAttachments: FileAttachment[]) => {
       setIsTyping(true);
       scrollToBottom();
 
-      const responseDelay = 1200 + Math.random() * 1500;
+      try {
+        const history: ApiChatMessage[] = messages
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .map((m) => ({ role: m.role, content: m.content }));
 
-      setTimeout(() => {
-        setIsTyping(false);
+        const result = await sendAgentMessage([...history, { role: 'user', content: userText }]);
 
-        let response: ChatMessage;
-
-        if (lower.includes('curriculo') || lower.includes('cv') || lower.includes('candidato')) {
-          response = {
-            id: generateId(),
-            role: 'assistant',
-            content: 'Analise do curriculo concluida! Aqui estao os dados principais do candidato:',
-            timestamp: new Date(),
-            structuredData: {
-              type: 'cv',
-              nome: 'Joao Silva',
-              email: 'joao.silva@email.com',
-              telefone: '(11) 98765-4321',
-              cargo: 'Desenvolvedor Senior',
-              experiencia: '8 anos',
-              formacao: 'Ciencia da Computacao',
-              habilidades: ['React', 'Node.js', 'Python', 'AWS', 'TypeScript', 'PostgreSQL'],
-            },
-            followUpActions: ['Salvar candidato', 'Comparar com outro CV', 'Gerar resumo'],
-          };
-        } else if (lower.includes('concili') || lower.includes('comparar') || lower.includes('diferenca')) {
-          response = {
-            id: generateId(),
-            role: 'assistant',
-            content: 'Conciliacao entre iFood e Nubank concluida. Encontrei as seguintes diferencas:',
-            timestamp: new Date(),
-            structuredData: {
-              type: 'comparison',
-              title: 'Conciliacao: iFood vs Nubank (Jun/2025)',
-              headers: ['Data', 'iFood', 'Nubank', 'Diferenca', 'Status'],
-              rows: [
-                { Data: '01/06', iFood: 'R$ 1.240', Nubank: 'R$ 1.240', Diferenca: 'R$ 0,00', Status: 'OK' },
-                { Data: '05/06', iFood: 'R$ 890', Nubank: 'R$ 890', Diferenca: 'R$ 0,00', Status: 'OK' },
-                { Data: '10/06', iFood: 'R$ 2.150', Nubank: 'R$ 1.950', Diferenca: 'R$ 200,00', Status: 'Divergente' },
-                { Data: '15/06', iFood: 'R$ 1.780', Nubank: 'R$ 1.780', Diferenca: 'R$ 0,00', Status: 'OK' },
-                { Data: '20/06', iFood: 'R$ 3.420', Nubank: 'R$ 3.100', Diferenca: 'R$ 320,00', Status: 'Divergente' },
-              ],
-            },
-            followUpActions: ['Gerar relatorio completo', 'Exportar para Excel', 'Criar tarefa de auditoria'],
-          };
-        } else if (lower.includes('relatorio') || lower.includes('vendas')) {
-          response = {
-            id: generateId(),
-            role: 'assistant',
-            content: 'Relatorio de vendas de junho de 2025 gerado com sucesso!',
-            timestamp: new Date(),
-            structuredData: {
-              type: 'report',
-              title: 'Relatorio gerado com sucesso!',
-              filename: 'relatorio_vendas_junho_2025.xlsx',
-              description: 'Relatorio de vendas completo com 847 transacoes, graficos de tendencia e analise por categoria.',
-            },
-            followUpActions: ['Ver detalhes', 'Gerar outro periodo', 'Enviar por email'],
-          };
-        } else if (lower.includes('organize') || lower.includes('arquivo') || lower.includes('pasta')) {
-          response = {
-            id: generateId(),
-            role: 'assistant',
-            content: 'Arquivos organizados com sucesso! Movimentei 142 arquivos para as pastas corretas:\n\n• 34 PDFs → /documentos\n• 18 planilhas → /planilhas\n• 23 imagens → /imagens\n• 12 compactados → /arquivados\n• 45 outros → /misc\n\n10 arquivos duplicados foram movidos para /lixeira.',
-            timestamp: new Date(),
-            structuredData: {
-              type: 'task',
-              title: 'Organizacao de arquivos /downloads',
-              category: 'Automacao',
-              status: 'concluida',
-              priority: 'baixa',
-              taskId: generateId(),
-            },
-            followUpActions: ['Desfazer organizacao', 'Agendar organizacao automatica', 'Ver arquivos movidos'],
-          };
-        } else if (lower.includes('resuma') || lower.includes('resumo')) {
-          response = {
-            id: generateId(),
-            role: 'assistant',
-            content: '**Resumo do contrato:**\n\nO contrato de prestacao de servicos entre TechCorp Brasil Ltda. e Nexus Solucoes Digitais estabelece:\n\n• **Prazo:** 12 meses (01/07/2025 a 30/06/2026)\n• **Valor mensal:** R$ 15.000,00\n• **Escopo:** Desenvolvimento e manutencao de sistema de gestao empresarial\n• **SLA:** 99,5% de uptime garantido\n• **Confidencialidade:** 3 anos apos rescisao\n• **Multa por atraso:** 2% ao mes\n\n**Pontos de atencao:** clausula de exclusividade na secao 4.2 e penalidades elevadas por quebra de SLA.',
-            timestamp: new Date(),
-            followUpActions: ['Salvar resumo', 'Analisar clausulas', 'Criar lembrete'],
-          };
-        } else if (lower.includes('quanto') || lower.includes('gasto') || lower.includes('custo')) {
-          response = {
-            id: generateId(),
-            role: 'assistant',
-            content: '**Analise de gastos com limpeza (jan/2025 - jun/2025):**\n\n• **Janeiro:** R$ 2.450,00\n• **Fevereiro:** R$ 2.380,00\n• **Marco:** R$ 2.620,00\n• **Abril:** R$ 2.510,00\n• **Maio:** R$ 2.390,00\n• **Junho:** R$ 2.580,00\n\n**Total no periodo:** R$ 14.930,00\n**Media mensal:** R$ 2.488,33\n\nO gasto esta dentro do orcamento previsto (R$ 2.600/mes). Houve uma reducao de 2,8% em relacao ao mesmo periodo do ano anterior.',
-            timestamp: new Date(),
-            followUpActions: ['Ver detalhamento', 'Comparar periodos', 'Gerar relatorio financeiro'],
-          };
-        } else {
-          response = {
-            id: generateId(),
-            role: 'assistant',
-            content: hasFile
-              ? `Recebi seu arquivo. Vou analisar e processar conforme solicitado. Assim que terminar, enviarei o resultado aqui.`
-              : `Entendi! Estou processando sua solicitacao. Posso ajudar com diversas tarefas como analise de documentos, geracao de relatorios, organizacao de arquivos e muito mais.\n\nSe precisar anexar algum arquivo, basta arrasta-lo para esta area ou clicar no icone de clipe abaixo.`,
-            timestamp: new Date(),
-            followUpActions: ['Analise de curriculo', 'Relatorio de vendas', 'Organizar arquivos'],
-          };
-        }
+        const response: ChatMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: result.response || 'Não obtive uma resposta do agente.',
+          timestamp: new Date(),
+          structuredData: deriveStructuredData(result.actions, result.response),
+          followUpActions: ['Ver tarefas', 'Ver arquivos', 'Ver relatórios'],
+        };
 
         setMessages((prev) => [...prev, response]);
-      }, responseDelay);
-    }, 500);
-  }, [scrollToBottom]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao consultar o agente.';
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: generateId(),
+            role: 'assistant',
+            content: `Desculpe, o agente não conseguiu processar sua solicitação: ${message}`,
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [messages, scrollToBottom]
+  );
 
   /* Send message */
   const sendMessage = useCallback(() => {
@@ -563,8 +535,8 @@ export default function Agente() {
       textareaRef.current.style.height = 'auto';
     }
 
-    simulateAIResponse(trimmed, attachments);
-  }, [inputValue, attachments, simulateAIResponse]);
+    handleAgentResponse(trimmed, attachments);
+  }, [inputValue, attachments, handleAgentResponse]);
 
   /* Keyboard handlers */
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
