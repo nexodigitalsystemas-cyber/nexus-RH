@@ -52,6 +52,7 @@ export async function* streamChat(config: OllamaConfig, request: AIChatRequest):
     model: config.model,
     messages: request.messages,
     stream: true,
+    keep_alive: '10m',
     options: {
       temperature: config.temperature,
       num_predict: config.maxTokens,
@@ -120,6 +121,7 @@ export async function chatWithTools(
     messages,
     tools,
     stream: false,
+    keep_alive: '10m',
     options: {
       temperature: config.temperature,
       num_predict: config.maxTokens,
@@ -173,6 +175,7 @@ export async function chatNonStreaming(config: OllamaConfig, request: AIChatRequ
     model: config.model,
     messages: request.messages,
     stream: false,
+    keep_alive: '10m',
     options: {
       temperature: config.temperature,
       num_predict: config.maxTokens,
